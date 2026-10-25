@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import HanziWriter from 'hanzi-writer'
+import { useTheme } from '../theme'
 
 const base = import.meta.env.BASE_URL
 
@@ -8,6 +9,14 @@ export const charDataLoader = (char: string, onLoad: (d: unknown) => void, onErr
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error('no stroke data'))))
     .then(onLoad)
     .catch(onError)
+}
+
+/** Browsers report translucent CSS colours as #rrggbbaa, which Hanzi Writer rejects: use rgba() instead. */
+function writerColor(value: string): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value)
+  if (!m) return value
+  const [r, g, b, a] = m.slice(1).map((h) => parseInt(h, 16))
+  return `rgba(${r}, ${g}, ${b}, ${+(a / 255).toFixed(2)})`
 }
 
 export interface WriterHandle {
@@ -31,6 +40,7 @@ interface Props {
 /** One square drawing box backed by hanzi-writer (stroke data is served from /strokes). */
 export function HanziWriterBox({ char, size = 220, mode, showOutline = false, leniency = 1, onReady, onMistake, onComplete, onMissing, color }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const { resolved: theme } = useTheme() // re-create the writer with the right colours when the theme changes
   const cbs = useRef({ onMistake, onComplete, onReady, onMissing })
   cbs.current = { onMistake, onComplete, onReady, onMissing }
 
@@ -38,6 +48,8 @@ export function HanziWriterBox({ char, size = 220, mode, showOutline = false, le
     const el = ref.current
     if (!el) return
     el.innerHTML = ''
+    const css = getComputedStyle(document.documentElement)
+    const v = (name: string) => writerColor(css.getPropertyValue(name).trim())
     let cancelled = false
     let loop: ReturnType<typeof setTimeout> | undefined
     const writer = HanziWriter.create(el, char, {
@@ -47,10 +59,15 @@ export function HanziWriterBox({ char, size = 220, mode, showOutline = false, le
       charDataLoader: charDataLoader as never,
       showOutline: mode === 'animate' || mode === 'static' || showOutline,
       showCharacter: mode === 'static',
-      strokeColor: color ?? '#2b2b2b',
-      outlineColor: '#d9d3c9',
-      drawingColor: '#c0392b',
-      radicalColor: undefined,
+      strokeColor: color ?? v('--ink'),
+      outlineColor: v('--outline'),
+      highlightColor: v('--accent'),
+      // your own stroke: a thick, soft grey "ink" line rather than a thin red scribble
+      drawingColor: v('--draw'),
+      drawingWidth: 40,
+      drawingFadeDuration: 150,
+      // a correct stroke snaps into place instead of fading in
+      strokeFadeDuration: 0,
       strokeAnimationSpeed: 1.2,
       delayBetweenStrokes: 250,
       leniency,
@@ -80,7 +97,7 @@ export function HanziWriterBox({ char, size = 220, mode, showOutline = false, le
         /* not started */
       }
     }
-  }, [char, size, mode, showOutline, leniency, color])
+  }, [char, size, mode, showOutline, leniency, color, theme])
 
   return <div ref={ref} className="writer-box" style={{ width: size, height: size }} />
 }

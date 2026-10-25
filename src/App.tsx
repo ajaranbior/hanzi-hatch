@@ -5,6 +5,19 @@ import { DeckPage, DecksPage } from './pages/Decks'
 import { HomePage } from './pages/Home'
 import { SettingsPage } from './pages/Settings'
 import { StudyPage } from './pages/Study'
+import { setTheme, useTheme, type ThemeChoice } from './theme'
+
+const NEXT: Record<ThemeChoice, ThemeChoice> = { auto: 'light', light: 'dark', dark: 'auto' }
+const ICON: Record<ThemeChoice, string> = { auto: '🌓', light: '☀️', dark: '🌙' }
+
+function ThemeToggle() {
+  const { choice } = useTheme()
+  return (
+    <button className="btn icon theme-toggle" title={`Theme: ${choice} (click to change)`} onClick={() => setTheme(NEXT[choice])}>
+      {ICON[choice]} <small>{choice}</small>
+    </button>
+  )
+}
 
 export function App() {
   return (
@@ -18,6 +31,7 @@ export function App() {
           <NavLink to="/words">My words</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
+        <ThemeToggle />
       </header>
       <main>
         <Routes>

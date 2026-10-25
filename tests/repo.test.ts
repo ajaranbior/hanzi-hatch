@@ -41,6 +41,24 @@ describe('Repo', () => {
     expect((await repo.stats()).reviewedToday).toBe(4)
   })
 
+  it('skips known words and supports focused sessions', async () => {
+    const a = await repo.addWord({ hanzi: '一', pinyin: 'yi1', meaning: 'one' })
+    const b = await repo.addWord({ hanzi: '二', pinyin: 'er4', meaning: 'two' })
+    await repo.addWord({ hanzi: '三', pinyin: 'san1', meaning: 'three', known: true })
+    let q = await repo.buildQueue()
+    expect(new Set(q.map((c) => c.word.hanzi))).toEqual(new Set(['一', '二']))
+    // focused: only the requested word, even beyond the daily limit
+    await repo.saveSettings({ ...(await repo.getSettings()), newWordsPerDay: 1 })
+    q = await repo.buildQueue(Date.now(), 0, [b.word.id!])
+    expect(q.filter((c) => c.intro).map((c) => c.word.hanzi)).toEqual(['二'])
+    // marking known removes it, unmarking brings it back
+    await repo.setKnown(a.word.id!, true)
+    expect((await repo.stats()).known).toBe(2)
+    expect((await repo.buildQueue()).some((c) => c.word.hanzi === '一')).toBe(false)
+    await repo.setKnown(a.word.id!, false)
+    expect((await repo.buildQueue(Date.now(), 5)).some((c) => c.word.hanzi === '一')).toBe(true)
+  })
+
   it('exports and imports', async () => {
     await repo.addWord({ hanzi: '一', pinyin: 'yi1', meaning: 'one' })
     const dump = await repo.exportAll()

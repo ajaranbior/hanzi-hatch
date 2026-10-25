@@ -19,7 +19,7 @@ export function CollectionPage() {
       .filter((w) => !f || w.hanzi.includes(f) || w.meaning.toLowerCase().includes(f) || (fk && searchKey(w.pinyin).includes(fk)))
       .map((w) => {
         const mine = data.items.filter((i) => i.wordId === w.id)
-        const status = !w.introducedAt ? 'new' : mine.length && mine.every((i) => i.state === 'review') ? 'learned' : 'learning'
+        const status = w.known ? 'known' : !w.introducedAt ? 'new' : mine.length && mine.every((i) => i.state === 'review') ? 'learned' : 'learning'
         return { w, status }
       })
   }, [data, filter])
@@ -38,6 +38,7 @@ export function CollectionPage() {
               <div className="tags"><span className={`tag status-${status}`}>{status}</span></div>
             </div>
             <AudioButton text={w.hanzi} />
+            <button className="btn small" onClick={() => repo.setKnown(w.id!, status !== 'known')}>{status === 'known' ? 'Not yet' : 'I know it'}</button>
             <button className="btn link" title="Remove" onClick={() => confirm(`Remove ${w.hanzi}?`) && repo.removeWord(w.id!)}>✕</button>
           </li>
         ))}

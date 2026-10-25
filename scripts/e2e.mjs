@@ -17,9 +17,32 @@ try {
   await page.goto(base)
   await page.getByText('Browse HSK lists').click()
   await page.getByRole('link', { name: /HSK 1/ }).first().click()
-  await page.getByRole('button', { name: 'Add next 10' }).click()
+  // mark the first word as known, then "Study now" must skip it and start the next 10
+  const first = await page.locator('.entry .hanzi-cell').first().innerText()
+  await page.locator('.entry').first().getByRole('button', { name: 'I know it' }).click()
+  await page.locator('.entry').first().locator('.status-known').waitFor()
+  step(`marked ${first} as known`)
+  await page.getByRole('button', { name: /Study now/ }).click()
+  await page.waitForURL(/#\/study\?ids=/)
+  await page.getByText('New word').first().waitFor()
+  const introduced = await page.locator('.big-hanzi').first().innerText()
+  if (introduced === first) throw new Error('Study now started with the known word')
+  step(`Study now opened a session starting with ${introduced} (known ${first} skipped)`)
+  // dark mode: the writer box must use light ink on the dark card
+  await page.locator('.theme-toggle').click() // auto -> light
+  await page.locator('.theme-toggle').click() // light -> dark
+  if ((await page.evaluate(() => document.documentElement.dataset.theme)) !== 'dark') throw new Error('theme did not switch to dark')
+  await page.waitForTimeout(3500)
+  await page.screenshot({ path: (process.argv[2] ?? 'e2e.png').replace('.png', '-dark.png') })
+  const ink = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ink').trim())
+  const strokeFill = await page.evaluate(() => [...document.querySelectorAll('.writer-box svg path')].map((p) => getComputedStyle(p).fill).find((f) => f && f !== 'none'))
+  console.log('  dark theme --ink', ink, '| writer stroke fill', strokeFill)
+  await page.locator('.theme-toggle').click() // dark -> auto
+  step('theme toggle works')
+  await page.goto(base + '#/decks/old/1')
+  await page.getByRole('button', { name: /Add next 50/ }).click()
   await page.getByText('Added ✓').first().waitFor()
-  step('added first 10 HSK 2.0 level-1 words')
+  step('add next 50 for later')
 
   await page.goto(base + '#/add')
   await page.getByPlaceholder('你好 · ni hao · hello').fill('nihao')

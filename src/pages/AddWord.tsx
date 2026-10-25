@@ -1,13 +1,11 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { pinyin as proPinyin } from 'pinyin-pro'
 import { useEffect, useMemo, useState } from 'react'
 import { PinyinText } from '../components/PinyinText'
 import { hanChars, wordKey } from '../core/hanzi'
 import { isValidSyllable, parsePinyin, toNumeric } from '../core/pinyin'
 import type { Entry } from '../core/types'
-import { db } from '../data/db'
 import { useDictionary } from '../data/dictionary-store'
-import { useSettings } from '../data/hooks'
+import { useCollection, useSettings } from '../data/hooks'
 import { entryToInput, repo } from '../data/repo'
 import { EntryRow } from './Decks'
 
@@ -20,10 +18,7 @@ export function AddWordPage() {
   const { dict, isFull, error } = useDictionary(true)
   const [settings] = useSettings()
   const [q, setQ] = useState('')
-  const have = useLiveQuery(async () => {
-    await db.words.count()
-    return repo.collectionKeys()
-  }, []) ?? new Set<string>()
+  const have = useCollection()
   const results = useMemo<Entry[]>(() => (dict && q.trim() ? dict.search(q, 40) : []), [dict, q])
 
   return (
@@ -43,7 +38,7 @@ export function AddWordPage() {
       {error && <div className="error">{error}</div>}
       <ul className="entries">
         {results.map((e) => (
-          <EntryRow key={wordKey(e.hanzi, e.pinyin) + e.meaning} e={e} added={have.has(wordKey(e.hanzi, e.pinyin))} colors={settings.toneColors} />
+          <EntryRow key={wordKey(e.hanzi, e.pinyin) + e.meaning} e={e} word={have.get(wordKey(e.hanzi, e.pinyin))} colors={settings.toneColors} />
         ))}
       </ul>
       {q.trim() && isFull && results.length === 0 && <div className="muted">No dictionary match. Use the custom form below.</div>}
@@ -124,7 +119,7 @@ function BulkAdd() {
         if (hit && (hit.hanzi === line || hit.traditional === line)) return entryToInput(hit)
         return { hanzi: line, pinyin: autoPinyin(line), meaning: hit?.meaning ?? '(no meaning — edit later)', source: 'custom' as const }
       })
-    const n = await repo.addWords(inputs)
+    const { created: n } = await repo.addWords(inputs)
     setMsg(`Added ${n} new word${n === 1 ? '' : 's'} (${inputs.length - n} already existed).`)
     setText('')
   }

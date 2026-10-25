@@ -27,7 +27,7 @@ export function HomePage() {
             <div className="stat"><b>{stats.dueReviews}</b><span>reviews due</span></div>
             <div className="stat"><b>{stats.newToday}</b><span>new words today</span></div>
             <div className="stat"><b>{stats.reviewedToday}</b><span>answered today</span></div>
-            <div className="stat"><b>{stats.words}</b><span>words in collection</span></div>
+            <div className="stat"><b>{stats.words}</b><span>words{stats.known ? ` (${stats.known} known)` : ''}</span></div>
           </div>
           <div className="row center">
             {todo > 0 ? (

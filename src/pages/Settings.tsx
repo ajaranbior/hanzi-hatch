@@ -3,9 +3,11 @@ import { whenVoicesReady } from '../audio/speak'
 import { ITEM_KINDS, KIND_LABEL } from '../core/types'
 import { useSettings } from '../data/hooks'
 import { repo } from '../data/repo'
+import { setTheme, useTheme, type ThemeChoice } from '../theme'
 
 export function SettingsPage() {
   const [s, save] = useSettings()
+  const { choice } = useTheme()
   const [voice, setVoice] = useState<boolean | null>(null)
   const [msg, setMsg] = useState('')
   useEffect(() => {
@@ -33,6 +35,14 @@ export function SettingsPage() {
     <div className="page">
       <h1>Settings</h1>
       <section className="panel form">
+        <label>
+          Theme
+          <select value={choice} onChange={(e) => setTheme(e.target.value as ThemeChoice)}>
+            <option value="auto">Match my device</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
         <label>
           New words per day
           <input type="number" min={1} max={100} value={s.newWordsPerDay} onChange={(e) => save({ ...s, newWordsPerDay: Math.max(1, Number(e.target.value) || 1) })} />

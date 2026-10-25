@@ -24,6 +24,8 @@ export interface Word {
   addedAt: number
   /** set the first time the word is shown in a study session */
   introducedAt?: number
+  /** the user already knows this word: kept in the collection but never scheduled */
+  known?: boolean
   note?: string
 }
 

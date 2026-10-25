@@ -8,6 +8,9 @@ import { repo, type QueueCard } from '../data/repo'
 export function StudyPage() {
   const [params] = useSearchParams()
   const extra = Number(params.get('extra')) || 0
+  // "Study now" from a deck: practise exactly these words
+  const ids = params.get('ids')?.split(',').map(Number).filter(Boolean)
+  const idsKey = ids?.join(',') ?? ''
   const [queue, setQueue] = useState<QueueCard[] | null>(null)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [idx, setIdx] = useState(0)
@@ -16,7 +19,7 @@ export function StudyPage() {
 
   useEffect(() => {
     let alive = true
-    Promise.all([repo.buildQueue(Date.now(), extra), repo.getSettings()]).then(([q, s]) => {
+    Promise.all([repo.buildQueue(Date.now(), extra, ids), repo.getSettings()]).then(([q, s]) => {
       if (!alive) return
       total.current = q.filter((c) => !c.intro).length
       setQueue(q)
@@ -26,7 +29,8 @@ export function StudyPage() {
       alive = false
       audio.stop()
     }
-  }, [extra])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extra, idsKey])
 
   if (!queue) return <div className="page"><p className="muted">Loading…</p></div>
   const card = queue[idx]

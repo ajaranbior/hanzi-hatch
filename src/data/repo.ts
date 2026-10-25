@@ -19,6 +19,8 @@ export interface NewWordInput {
   oldLevel?: number
   newLevel?: number
   note?: string
+  /** add the word as already known (no practice) */
+  known?: boolean
 }
 
 export function entryToInput(e: Entry): NewWordInput {
@@ -51,6 +53,7 @@ export class Repo {
         newLevel: input.newLevel ?? 0,
         note: input.note,
         addedAt: now,
+        ...(input.known ? { known: true } : {}),
       }
       const id = (await this.db.words.add(word)) as number
       word.id = id
@@ -59,14 +62,26 @@ export class Repo {
     })
   }
 
-  async addWords(inputs: NewWordInput[]): Promise<number> {
-    let n = 0
+  /** Adds several words in list order. Returns every word (new or already present) and how many were new. */
+  async addWords(inputs: NewWordInput[]): Promise<{ words: Word[]; created: number }> {
+    const words: Word[] = []
+    let created = 0
     const base = Date.now()
     for (const [i, input] of inputs.entries()) {
       // keep list order: addedAt is the order new words are introduced in
-      if ((await this.addWord(input, base + i)).created) n++
+      const r = await this.addWord(input, base + i)
+      words.push(r.word)
+      if (r.created) created++
     }
-    return n
+    return { words, created }
+  }
+
+  /** Mark a word as known (excluded from study) or put it back into the queue. */
+  async setKnown(id: number, known: boolean) {
+    await this.db.words.where(':id').equals(id).modify((w) => {
+      if (known) w.known = true
+      else delete w.known
+    })
   }
 
   async updateWord(id: number, patch: Partial<Pick<Word, 'meaning' | 'note' | 'pinyin' | 'hanzi'>>) {
@@ -80,10 +95,10 @@ export class Repo {
     })
   }
 
-  /** keys `hanzi|pinyin` of everything in the collection, for "already added" checks */
-  async collectionKeys(): Promise<Set<string>> {
+  /** everything in the collection by `hanzi|pinyin`, for "already added / known" checks */
+  async collectionMap(): Promise<Map<string, Word>> {
     const words = await this.db.words.toArray()
-    return new Set(words.map((w) => `${w.hanzi}|${w.pinyin}`))
+    return new Map(words.map((w) => [`${w.hanzi}|${w.pinyin}`, w]))
   }
 
   // ---- settings ----------------------------------------------------------
@@ -104,18 +119,19 @@ export class Repo {
     const settings = await this.getSettings()
     const [items, words] = await Promise.all([this.db.items.toArray(), this.db.words.toArray()])
     const enabled = new Set(ITEM_KINDS.filter((k) => settings.kinds[k]))
-    const wordIds = new Set(words.map((w) => w.id))
+    const wordIds = new Set(words.filter((w) => !w.known).map((w) => w.id))
     const live = items.filter((i) => enabled.has(i.kind) && wordIds.has(i.wordId))
     const introduced = new Set(words.filter((w) => w.introducedAt).map((w) => w.id))
     const dueReviews = live.filter((i) => introduced.has(i.wordId) && i.due <= now).length
     const startOfDay = new Date(now).setHours(0, 0, 0, 0)
     const introducedToday = words.filter((w) => (w.introducedAt ?? 0) >= startOfDay).length
-    const waiting = words.filter((w) => !w.introducedAt).length
+    const waiting = words.filter((w) => !w.introducedAt && !w.known).length
     const newToday = Math.min(waiting, Math.max(0, settings.newWordsPerDay - introducedToday))
     const reviewedToday = await this.db.logs.where('at').aboveOrEqual(startOfDay).count()
     const learned = live.filter((i) => i.state === 'review').length
     return {
       words: words.length,
+      known: words.filter((w) => w.known).length,
       dueReviews,
       newToday,
       waiting,
@@ -129,23 +145,27 @@ export class Repo {
    * The cards for a study session: due reviews first, then up to `newWordsPerDay` new words, each
    * preceded by an intro card.
    */
-  async buildQueue(now = Date.now(), extraNew = 0): Promise<QueueCard[]> {
+  async buildQueue(now = Date.now(), extraNew = 0, onlyWordIds?: number[]): Promise<QueueCard[]> {
     const settings = await this.getSettings()
     const enabled = ITEM_KINDS.filter((k) => settings.kinds[k])
     const [items, words] = await Promise.all([this.db.items.toArray(), this.db.words.toArray()])
     const byId = new Map(words.map((w) => [w.id!, w]))
     const horizon = now + 15 * 60_000 // learning steps that come due soon are included
 
-    const due = items
-      .filter((i) => enabled.includes(i.kind) && byId.get(i.wordId)?.introducedAt && i.due <= horizon)
+    // a focused session ("study these words now") skips reviews and the daily limit
+    const focus = onlyWordIds ? new Set(onlyWordIds) : null
+    const due = focus
+      ? []
+      : items
+      .filter((i) => enabled.includes(i.kind) && byId.get(i.wordId)?.introducedAt && !byId.get(i.wordId)?.known && i.due <= horizon)
       .sort((a, b) => a.due - b.due)
     const queue: QueueCard[] = due.map((item) => ({ item, word: byId.get(item.wordId)!, intro: false }))
 
     const startOfDay = new Date(now).setHours(0, 0, 0, 0)
     const introducedToday = words.filter((w) => (w.introducedAt ?? 0) >= startOfDay).length
-    const budget = Math.max(0, settings.newWordsPerDay - introducedToday) + extraNew
+    const budget = focus ? Infinity : Math.max(0, settings.newWordsPerDay - introducedToday) + extraNew
     const fresh = words
-      .filter((w) => !w.introducedAt)
+      .filter((w) => !w.introducedAt && !w.known && (!focus || focus.has(w.id!)))
       .sort((a, b) => a.addedAt - b.addedAt || a.id! - b.id!)
       .slice(0, budget)
     const itemsByWord = new Map<number, ReviewItem[]>()
