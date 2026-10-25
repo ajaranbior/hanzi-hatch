@@ -36,6 +36,22 @@ function useKey(handler: (e: KeyboardEvent) => void, allowInInput = false) {
   }, [allowInInput])
 }
 
+/** After a correct answer, grade it "Good" and move on once the user has had a moment to see it. */
+const AUTO_ADVANCE_MS = 900
+function useAutoAdvance(active: boolean, onGrade: (g: Grade) => void) {
+  const cb = useRef(onGrade)
+  cb.current = onGrade
+  useEffect(() => {
+    if (!active) return
+    const id = setTimeout(() => cb.current(3), AUTO_ADVANCE_MS)
+    return () => clearTimeout(id) // grading manually (or leaving) cancels it
+  }, [active])
+}
+
+function AutoNote({ active }: { active: boolean }) {
+  return active ? <div className="muted small auto-note">Correct — continuing… (press 1–4 to choose a different grade)</div> : null
+}
+
 export function GradePanel({ item, suggested, onGrade }: { item: ReviewItem; suggested?: Grade; onGrade: (g: Grade) => void }) {
   useKey((e) => {
     if (e.key >= '1' && e.key <= '4') onGrade(Number(e.key) as Grade)
@@ -133,6 +149,8 @@ export function ToneCard({ word, item, settings, onGrade }: CardProps) {
   const done = picked.length === want.length
   const correct = done && picked.every((t, i) => t === want[i].tone)
   const idx = Math.min(picked.length, want.length - 1)
+  const auto = correct && settings.autoAdvance
+  useAutoAdvance(auto, onGrade)
 
   useEffect(() => {
     if (done && settings.autoPlayAudio) audio.speak(word.hanzi)
@@ -172,6 +190,7 @@ export function ToneCard({ word, item, settings, onGrade }: CardProps) {
         <>
           <Verdict ok={correct}><PinyinText pinyin={word.pinyin} colors={settings.toneColors} className="large" /></Verdict>
           <div className="row center"><AudioButton text={word.hanzi} /></div>
+          <AutoNote active={auto} />
           <GradePanel item={item} suggested={correct ? 3 : 1} onGrade={onGrade} />
         </>
       )}
@@ -185,6 +204,8 @@ export function PronunciationCard({ word, item, settings, onGrade }: CardProps) 
   const [text, setText] = useState('')
   const [result, setResult] = useState<ReturnType<typeof checkPinyin> | null>(null)
   const [hint, setHint] = useState(false)
+  const auto = !!result?.correct && settings.autoAdvance
+  useAutoAdvance(auto, onGrade)
   useEffect(() => {
     audio.speak(word.hanzi)
   }, [word])
@@ -227,6 +248,7 @@ export function PronunciationCard({ word, item, settings, onGrade }: CardProps) 
           </Verdict>
           {!result.correct && text.trim() && <div className="typed">You typed: <b>{numericToMarked(text.trim()) || text}</b></div>}
           <div className="meaning small">{word.meaning}</div>
+          <AutoNote active={auto} />
           <GradePanel item={item} suggested={result.correct ? 3 : 1} onGrade={onGrade} />
         </>
       )}
@@ -252,6 +274,8 @@ export function WritingCard({ word, item, settings, onGrade }: CardProps) {
   }, [finished, gaveUp, word, settings.autoPlayAudio])
 
   const suggested: Grade = gaveUp ? 1 : mistakes === 0 ? 3 : mistakes <= 2 * chars.length ? 2 : 1
+  const auto = finished && suggested === 3 && settings.autoAdvance // a perfect write moves on; mistakes stop for review
+  useAutoAdvance(auto, onGrade)
   const size = chars.length > 3 ? 150 : chars.length > 1 ? 200 : 260
 
   return (
@@ -292,6 +316,7 @@ export function WritingCard({ word, item, settings, onGrade }: CardProps) {
             {gaveUp ? ' — study the strokes, then continue' : mistakes ? ` — ${mistakes} mistake${mistakes > 1 ? 's' : ''}` : ' — perfect'}
           </Verdict>
           {missing > 0 && <div className="muted">No stroke data for {missing} character(s); they were skipped.</div>}
+          <AutoNote active={auto} />
           <GradePanel item={item} suggested={suggested} onGrade={onGrade} />
         </>
       )}

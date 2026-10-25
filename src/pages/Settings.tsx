@@ -56,6 +56,7 @@ export function SettingsPage() {
           ))}
         </fieldset>
         <label className="check"><input type="checkbox" checked={s.toneColors} onChange={(e) => save({ ...s, toneColors: e.target.checked })} /> Colour pinyin and hanzi by tone</label>
+        <label className="check"><input type="checkbox" checked={s.autoAdvance} onChange={(e) => save({ ...s, autoAdvance: e.target.checked })} /> Move on automatically after a correct answer</label>
         <label className="check"><input type="checkbox" checked={s.autoPlayAudio} onChange={(e) => save({ ...s, autoPlayAudio: e.target.checked })} /> Play audio automatically</label>
         <label className="check"><input type="checkbox" checked={s.strictTones} onChange={(e) => save({ ...s, strictTones: e.target.checked })} /> Require tones when typing pinyin</label>
         <label className="check"><input type="checkbox" checked={s.showOutline} onChange={(e) => save({ ...s, showOutline: e.target.checked })} /> Show faint outline while writing (easier)</label>

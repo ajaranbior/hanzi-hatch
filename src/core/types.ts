@@ -62,6 +62,8 @@ export interface Settings {
   newWordsPerDay: number
   kinds: Record<ItemKind, boolean>
   autoPlayAudio: boolean
+  /** move on by itself (as "Good") after a correct answer */
+  autoAdvance: boolean
   toneColors: boolean
   /** require tone marks/numbers when typing pinyin */
   strictTones: boolean
@@ -77,6 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   newWordsPerDay: 10,
   kinds: { meaning: true, tone: true, pronunciation: true, writing: true },
   autoPlayAudio: true,
+  autoAdvance: true,
   toneColors: true,
   strictTones: true,
   hskVersion: 'old',

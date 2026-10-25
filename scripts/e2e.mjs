@@ -67,6 +67,8 @@ try {
 
   await page.goto(base + '#/study')
   await page.evaluate(() => { window.__log = []; let last = ''; setInterval(() => { const c = document.querySelector('.card'); const t = c ? (c.querySelector('.kicker')?.textContent ?? '?') + (c.querySelector('.verdict') ? ' [result]' : '') : '-'; if (t !== last) { window.__log.push(t); last = t } }, 20) })
+  let introPinyin = ''
+  let autoChecked = false
   const seen = new Set()
   const finalClick = async (locator) => {
     const before = await page.locator('.card').innerText()
@@ -77,12 +79,18 @@ try {
     const kicker = await page.locator('.kicker').first().textContent({ timeout: 3000 }).catch(() => null)
     if (!kicker) break
     seen.add(kicker)
-    if (kicker === 'New word') await finalClick(page.getByRole('button', { name: /Start practising/ }))
+    if (kicker === 'New word') { introPinyin = (await page.locator('.card .pinyin').first().innerText()).replace(/\s+/g, ' ').trim(); await finalClick(page.getByRole('button', { name: /Start practising/ })) }
     else if (kicker.startsWith('What does')) { await page.getByRole('button', { name: /Show answer/ }).click(); await finalClick(page.locator('.btn.grade.g3')) }
     else if (kicker.startsWith('Which tones')) {
       const n = await page.locator('.tone-slot').count()
       for (let k = 0; k < n; k++) await page.locator('.tone-btn').nth(0).click()
       await finalClick(page.locator('.btn.grade.g1'))
+    } else if (kicker.startsWith('Listen') && !autoChecked && introPinyin) {
+      // a correct answer must move on by itself, with no click on a grade button
+      const before = await page.locator('.card').innerText()
+      await page.locator('.pinyin-input').fill(introPinyin); await page.keyboard.press('Enter')
+      await page.waitForFunction((t) => document.querySelector('.card')?.innerText !== t && !document.querySelector('.card .verdict'), before, { timeout: 4000 })
+      autoChecked = true; step(`correct pinyin "${introPinyin}" advanced automatically`)
     } else if (kicker.startsWith('Listen')) { await page.locator('.pinyin-input').fill('zzz'); await page.keyboard.press('Enter'); await page.waitForTimeout(300); if (!(await page.locator('.verdict').count())) throw new Error('Enter on the pronunciation card skipped the result (key leaked into grade panel)'); await finalClick(page.locator('.btn.grade.g1')) }
     else if (kicker.startsWith('Write')) {
       await page.locator('svg').first().waitFor()
