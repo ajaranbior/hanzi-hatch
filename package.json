@@ -1,0 +1,39 @@
+{
+  "name": "hanzi-hatch",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Learn to write Chinese characters, tones, pronunciation and meaning with spaced repetition.",
+  "scripts": {
+    "data": "node scripts/build-data.mjs",
+    "predev": "node scripts/build-data.mjs --if-missing",
+    "dev": "vite",
+    "prebuild": "node scripts/build-data.mjs --if-missing",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "e2e": "node scripts/e2e.mjs"
+  },
+  "dependencies": {
+    "dexie": "^4.4.7",
+    "dexie-react-hooks": "^4.4.0",
+    "hanzi-writer": "^3.7.3",
+    "pinyin-pro": "^3.29.5",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "cc-cedict": "^1.1.1",
+    "fake-indexeddb": "^6.2.6",
+    "hanzi-writer-data": "^2.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.0.5"
+  }
+}

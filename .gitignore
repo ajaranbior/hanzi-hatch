@@ -1,0 +1,9 @@
+node_modules
+dist
+*.local
+public/data/dict.json
+public/strokes
+.DS_Store
+tsconfig.tsbuildinfo
+/data/
+e2e*.png
