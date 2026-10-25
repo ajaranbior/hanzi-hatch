@@ -23,13 +23,14 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg}', 'data/hsk.json'],
         maximumFileSizeToCacheInBytes: 5_000_000,
+        // stroke files never change; word data should refresh in the background when the app is updated
         runtimeCaching: [
-          {
-            urlPattern: /\/(strokes|data)\/.*\.json$/,
-            handler: 'CacheFirst',
-            options: { cacheName: 'hanzi-data', expiration: { maxEntries: 12000 } },
-          },
+          { urlPattern: /\/strokes\/.*\.json$/, handler: 'CacheFirst', options: { cacheName: 'hanzi-strokes', expiration: { maxEntries: 12000 } } },
+          { urlPattern: /\/data\/dict\.json$/, handler: 'StaleWhileRevalidate', options: { cacheName: 'hanzi-dict' } },
         ],
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
