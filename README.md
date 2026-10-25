@@ -1,5 +1,7 @@
 # Hanzi Hatch 字
 
+**▶ Try it: https://ajaranbior.github.io/hanzi-hatch/**
+
 A Skritter-style app for learning Chinese: **drawing characters**, **tones**, **pronunciation** and **meaning**, scheduled with spaced repetition. Runs in the browser (installable as a PWA, works offline) and is structured so a mobile app can be wrapped around it later.
 
 ## Features
