@@ -1,5 +1,5 @@
 // Builds the static data the app ships with.
-//   public/data/hsk.json    HSK 2.0 + 3.0 word lists   (committed; source: drkameleon/complete-hsk-vocabulary, MIT)
+//   public/data/hsk.json    HSK 2.0 + 3.0 word lists, one reading per word   (committed; source: drkameleon/complete-hsk-vocabulary, MIT)
 //   public/data/dict.json   compact CC-CEDICT          (generated from the `cc-cedict` npm package, CC BY-SA 4.0)
 //   public/strokes/*.json   stroke-order data          (copied from `hanzi-writer-data`, Make Me a Hanzi data)
 //
@@ -11,6 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pinyin as proPinyin } from 'pinyin-pro'
 import { isValidSyllable, parsePinyin } from '../src/core/pinyin.ts'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -31,8 +32,39 @@ function numeric(p) {
   return syl.map((s) => `${s.base}${s.tone}`).join(' ')
 }
 
+// Meanings that describe a rare/secondary sense rather than the word itself.
+const JUNK_MEANING = /^(surname\b|variant of|old variant|archaic variant|erhua variant|also written|see\b|abbr\. for|(\(onom\.\))|\(dialect\)|unofficial variant)/i
+// Words where pinyin-pro's default is not the reading a learner meets first.
+const PREFERRED_READING = {
+  了: 'le5', 得: 'de5', 东西: 'dong1 xi5', 多少: 'duo1 shao5', 告诉: 'gao4 su5', 地方: 'di4 fang5', 故事: 'gu4 shi5', 妻子: 'qi1 zi5',
+}
+const usable = (m) => !JUNK_MEANING.test(m.trim())
+
+/**
+ * One reading per word. The source lists every reading of a character as a separate "form" in no
+ * reliable order (surnames and variants often come first), so: drop forms that only carry junk meanings,
+ * prefer the reading pinyin-pro (frequency based, word aware) considers the default, keep two meanings.
+ */
+function primaryForm(w) {
+  const forms = w.f
+    .map((f) => ({ py: numeric(f.i.y) ?? numeric(f.i.n), meanings: f.m.filter(usable), classifier: f.c?.[0] ?? '' }))
+    .filter((f) => f.py)
+  if (!forms.length) return null
+  const good = forms.filter((f) => f.meanings.length)
+  const pool = good.length ? good : forms
+  const def = numeric(proPinyin(w.s, { type: 'string', toneType: 'symbol', nonZh: 'consecutive' }))
+  const toneless = (p) => p.replace(/[1-5]/g, '')
+  const chosen =
+    pool.find((f) => f.py === PREFERRED_READING[w.s]) ??
+    pool.find((f) => f.py === def) ?? pool.find((f) => def && toneless(f.py) === toneless(def)) ?? pool[0]
+  const meanings = pool.filter((f) => f.py === chosen.py).flatMap((f) => f.meanings)
+  const unique = [...new Set(meanings)]
+  const meaning = (unique.length ? unique : w.f.find((f) => numeric(f.i.y) === chosen.py)?.m ?? []).slice(0, 2).join('; ')
+  return { py: chosen.py, meaning, classifier: chosen.classifier }
+}
+
 async function buildHsk() {
-  if (ifMissing && fs.existsSync(out('data', 'hsk.json'))) return
+  if (ifMissing && fs.existsSync(out('data', 'hsk.json')) && !args.has('--rebuild-hsk')) return
   if (args.has('--refresh-hsk') || !fs.existsSync(RAW_HSK)) {
     if (!fs.existsSync(RAW_HSK) && fs.existsSync(out('data', 'hsk.json')) && !args.has('--refresh-hsk')) return
     console.log('downloading HSK list…')
@@ -53,15 +85,12 @@ async function buildHsk() {
       if (l[0] === 'n') newL = newL ? Math.min(newL, n) : n
     }
     if (!oldL && !newL) continue // only in the 't' (Taiwan TOCFL) lists
-    for (const f of w.f) {
-      const py = numeric(f.i.y) ?? numeric(f.i.n)
-      if (!py) {
-        bad++
-        continue
-      }
-      const meaning = f.m.slice(0, 4).join('; ')
-      rows.push([w.s, py, meaning, oldL, newL, w.q ?? 99999, f.c?.[0] ?? ''])
+    const form = primaryForm(w)
+    if (!form) {
+      bad++
+      continue
     }
+    rows.push([w.s, form.py, form.meaning, oldL, newL, w.q ?? 99999, form.classifier])
   }
   rows.sort((a, b) => a[5] - b[5])
   fs.mkdirSync(out('data'), { recursive: true })

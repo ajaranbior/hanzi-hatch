@@ -44,11 +44,14 @@ export class Dictionary {
     for (const r of dict)
       add({ hanzi: r[0], pinyin: r[1], meaning: r[2], traditional: r[3], oldLevel: 0, newLevel: 0, freq: 1e6, source: 'dictionary' })
     for (const e of this.entries) {
+      if (e.source === 'hsk') this.hskHanzi.add(e.hanzi)
       push(this.byHanzi, e.hanzi, e)
       if (e.traditional) push(this.byHanzi, e.traditional, e)
       push(this.byKey, e.key, e)
     }
   }
+
+  private hskHanzi = new Set<string>()
 
   get size() {
     return this.entries.length
@@ -73,6 +76,7 @@ export class Dictionary {
     const q = query.trim()
     if (!q) return []
     const scored = new Map<Indexed, number>()
+    let pinyinKey: string | null = null // set when the query was read as pinyin
     const bump = (e: Indexed, score: number) => {
       const prev = scored.get(e)
       if (prev === undefined || score < prev) scored.set(e, score)
@@ -89,6 +93,7 @@ export class Dictionary {
       const looksPinyin = syl.length > 0 && /^[a-züvu:1-5āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s'’-]+$/i.test(q)
       if (looksPinyin) {
         const key = syl.map((s) => s.base).join('').replace(/ü/g, 'v')
+        pinyinKey = key
         const tones = syl.map((s) => s.tone)
         const typedTones = tones.every((t) => t !== 0)
         const valid = syl.every((s) => isValidSyllable(s.base))
@@ -112,7 +117,12 @@ export class Dictionary {
         }
       }
     }
+    // One reading per HSK word: secondary dictionary readings of the same hanzi (的 dī, 的 dí, …) are
+    // hidden unless the user asked for that reading by typing its pinyin.
+    const hskHanzi = this.hskHanzi
+    const hidden = (e: Indexed) => e.source !== 'hsk' && hskHanzi.has(e.hanzi) && e.key !== pinyinKey
     return [...scored.entries()]
+      .filter(([e]) => !hidden(e))
       .sort((a, b) => a[1] - b[1] || rank(a[0], b[0]))
       .slice(0, limit)
       .map(([e]) => stripIndex(e))

@@ -22,12 +22,14 @@ describe('Dictionary', () => {
     expect(d.lookup('女兒')[0].oldLevel).toBe(2)
   })
   it('searches by hanzi', () => {
-    expect(d.search('好').map((e) => e.hanzi + e.pinyin)).toEqual(['好hao3', '好hao4', '你好ni3 hao3', '拟好ni3 hao3'])
+    // secondary dictionary reading 好 hao4 is hidden for hanzi searches…
+    expect(d.search('好').map((e) => e.hanzi + e.pinyin)).toEqual(['好hao3', '你好ni3 hao3', '拟好ni3 hao3'])
   })
   it('searches by pinyin with and without tones', () => {
     expect(d.search('nihao')[0].hanzi).toBe('你好')
     expect(d.search('ni3hao3')[0].hanzi).toBe('你好')
     expect(d.search('nǐ hǎo')[0].hanzi).toBe('你好')
+    // …but found when searched by that pinyin
     expect(d.search('hao4')[0].pinyin).toBe('hao4')
     expect(d.search('nv er').map((e) => e.hanzi)).toContain('女儿')
   })
